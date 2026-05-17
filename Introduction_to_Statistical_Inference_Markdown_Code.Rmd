@@ -1,0 +1,127 @@
+---
+title: "ITSI"
+author: "Kacper Bryda, Rafał Kiełbasa, Szymon Ciesek"
+date: "2025-05-14"
+output: html_document
+---
+## <span style="color: blue;">TASK 1</span>
+We chose to analyze data set with information about influence of diseases and drugs on human's energy and oxygen saturation. 
+
+```{r}
+library(ggplot2)
+library(car)
+library(fitdistrplus)
+library(ggpubr)
+sample= read.csv(file="C:/Users/sus/Desktop/project ITSI/Lung Cancer Dataset.csv") 
+sample=sample[!is.na(sample$GENDER), ]
+sample$ALCOHOL_CONSUMPTION = ifelse(sample$ALCOHOL_CONSUMPTION == 1, "YES", "NO")
+head(sample)
+```
+
+
+We formulated problem. We want to know if there exist age interval with cumulation of people that drink alcohol.
+
+```{r}
+drunk = sample$AGE[sample$ALCOHOL_CONSUMPTION=="YES"]
+sober = sample$AGE[sample$ALCOHOL_CONSUMPTION=="NO"]
+boxplot(sober)
+```
+```{r}
+boxplot(drunk)
+```
+
+
+From boxplots, we can see that there aren't any outliers for both samples, so we don't have to clean them from data set.
+```{r}
+ggqqplot(sober, conf.int = TRUE, conf.int.level = 0.95, title = "sober")
+ggqqplot(drunk, conf.int = TRUE, conf.int.level = 0.95, title = "drunk")
+```
+
+
+Ggplots show that distribution of our sample is most likely not normal. Now we want to find what is their PDF.
+```{r}
+descdist(sober)
+descdist(drunk)
+```
+
+
+From Cullen and Frey graph we clearly see that we deal with uniform distribution, but to be sure let's check it with different plots, and Shapiro-Wilk test.
+```{r}
+fit_uni <-fitdist(drunk, "unif")
+plot(fit_uni)
+shapiro.test(drunk)
+shapiro.test(sober)
+```
+
+
+Now we are 100% sure that our sample distribution is uniform, because we reject hypothesis about normality of our samples. Now we want to check our start Hypothesis. We need to chose proper tests. First we check Homogeneity of variance. Our samples don't follow normal distribution, so we will use Levene’s test.
+```{r}
+mean(drunk)
+mean(sober)
+leveneTest(sample$AGE~sample$ALCOHOL_CONSUMPTION)
+```
+
+
+P-value of the test is equal to 0.9885, so we don't reject Null Hypothesis about equality of variances. To finalize our task, we will use Wilcoxon test.
+```{r}
+wilcox.test(sober,drunk,paired = FALSE)
+```
+
+
+P-value there is equal to 0.9116, so we also cannot reject hypothesis about equality of variances of samples. This leads us to conclusion that there don't exist any interval with highest number of people that drink alcohol. That may be caused by inappropriate sample.
+
+## <span style="color: blue;">TASK 2</span>
+Our task is to compare powers of t-test and Wilcoxon test under normality samples. Only assumption for samples is to be independent, that is why we chose to generate samples with rnorm function in R language.
+```{r}
+simulate_power = function(n, d, test_type = c("t", "wilcox"), conf = 0.1, iterations = 10000) {
+  test_type = match.arg(test_type)
+  rejections = 0
+  for (i in 1:iterations) {
+    x = rnorm(n, mean = 0, sd = 1)
+    y = rnorm(n, mean = d, sd = 1)
+    if (test_type == "t") {
+      p_val = t.test(x, y, var.equal = TRUE)$p.value
+    } else {
+      p_val = wilcox.test(x, y)$p.value
+    }
+    if (p_val < conf) {
+      rejections = rejections + 1
+    }
+  }
+  return(rejections / iterations)
+}
+
+
+set.seed(2137)
+
+
+sample_sizes = c(25, 50)
+effect_sizes = c(1/8, 1/4, 1/2)
+for (n in sample_sizes) {
+  for (d in effect_sizes) {
+    power_t = simulate_power(n, d, "t")
+    power_w = simulate_power(n, d, "wilcox")
+    cat(sprintf("n = %d, d = %.3f | t-test power = %.3f, Wilcoxon power = %.3f\n", n, d, power_t, power_w))
+  }
+}
+```
+
+
+We perform tests for samples x and y where x is normally distributed sample and y's mean is changed as said in task, so its equal to half, quarter and 1/8 in each next loop. After simulating the tests we display our results.
+
+Only thing that is left to complete, is to find number of samples, such that the estimation error is less than 0.005 with probability at least 99%.
+```{r}
+z = qnorm(0.995)       
+p = 0.1        
+m = 0.005       
+n_required = (z^2 * p * (1 - p)) / (m^2)
+n_required
+```
+
+
+Calculations give us number "23885.63". Sample size needs to be integer, so after rounding it we get 23886. That finalize our project.
+
+
+
+
+
